@@ -3,9 +3,16 @@
 #include<stdlib.h>
 
 int main(int argc, char* argv[]){
-	char * filename = (char *) malloc(1000);
-	printf("Enter a filename to upload: \n");
-	scanf("%s", filename);
-	//Get file corresponding to this name
-	
+	int total_files=0;
+	int i=0;
+
+	if(argc < 2){
+		printf("Filename not specified. Retry.\n");
+		return 0;	
+	}
+	int total_files = argc-1;
+	for(i=1;i<=total_files;i++){
+		
+	}	
+	return 0;
 }
