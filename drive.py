@@ -3,6 +3,9 @@ import json
 import webbrowser
 import logging
 import argparse
+import sys
+import time
+import datetime
 
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client import tools
@@ -11,83 +14,98 @@ from pprint import pprint
 from apiclient.discovery import build
 from apiclient import errors
 from apiclient.http import MediaFileUpload
+from apiclient.http import BatchHttpRequest
 
-logging.basicConfig()
-with open('client_secret.json') as data_file:    
-	data = json.load(data_file)
+#Obtains auth token and initializes service object for making API calls
+def initializeCredentials():
+	logging.basicConfig()
+	with open('client_secret.json') as data_file:    
+		data = json.load(data_file)
 
-#Obtain necessary info from client_secret.json
-CLIENT_ID = data['installed']['client_id']
-CLIENT_SECRET = data['installed']['client_secret']
-OAUTH_SCOPE = 'https://www.googleapis.com/auth/drive'
-REDIRECT_URI = 'http://localhost:8080'
+	#Obtain necessary info from client_secret.json
+	CLIENT_ID = data['installed']['client_id']
+	CLIENT_SECRET = data['installed']['client_secret']
+	OAUTH_SCOPE = 'https://www.googleapis.com/auth/drive'
+	REDIRECT_URI = 'http://localhost:8080'
 
-#Generate a url on authorization server
-flow = OAuth2WebServerFlow(CLIENT_ID, CLIENT_SECRET, OAUTH_SCOPE, REDIRECT_URI)
+	#Generate a url on authorization server
+	flow = OAuth2WebServerFlow(CLIENT_ID, CLIENT_SECRET, OAUTH_SCOPE, REDIRECT_URI)
+
+	storage = Storage('credentials.dat')
+	#the get() function returns the credentials for the Storage object. 
+
+	credentials = storage.get()
+	if credentials is None or credentials.invalid:
+		credentials = tools.run_flow(flow, storage, flags)
+		storage.put(credentials)
+
+	#Use the authorize() function of the Credentials class to apply necessary credential headers to all requests made by an httplib2.Http instance
+	http = httplib2.Http()
+	http = credentials.authorize(http)
+
+	#Google service object used to make API calls
+	drive_service = build('drive', 'v2', http=http)
+	return drive_service
+
+def appendErrorToLog(message):
+	#Do something about the exception
+	fo = open("logfile.txt", "a")
+	curr_time = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+	fo.write("ERROR:\t"+curr_time+"\n"+"%s\n\n\n\n" %message)
+	fo.close()
+
+def getParentFolderId(foldername):
+	result = []
+	parent_id = None
+	try:
+		search_query ="title = '"+foldername+"' and mimeType = 'application/vnd.google-apps.folder'"
+		files = drive_service.files().list(q=search_query).execute()
+		result.extend(files['items'])
+		for f in result:
+			parent_id = f['id']
+	except errors.HttpError, error:
+		appendErrorToLog(error)
+	return parent_id
 
 
-parser = argparse.ArgumentParser(parents=[tools.argparser])
-flags = parser.parse_args()
+#Get a list of all files to be uploaded from command line args
+def getUploadList():	
+	filelist = []
+	numargs = len(sys.argv)
+	for i in range (1,numargs):
+		filelist.append(sys.argv[i])
+	return filelist
 
-storage = Storage('credentials.dat')
-#the get() function returns the credentials for the Storage object. 
+#Upload a file to drive with parent folder id = parent_id
+def uploadFileToDrive(service, filename, parent_id):
+	title = filename
 
-credentials = storage.get()
-if credentials is None or credentials.invalid:
-	credentials = tools.run_flow(flow, storage, flags)
-	storage.put(credentials)
+	#Insert a file into folder
+	media_body = MediaFileUpload(filename, resumable=True)
+	body = {'title': title}
 
-#Use the authorize() function of the Credentials class to apply necessary credential headers to all requests made by an httplib2.Http instance
-http = httplib2.Http()
-http = credentials.authorize(http)
-
-drive_service = build('drive', 'v2', http=http)
-
-#Retrieve a parent folder's id given folder name and mime type in query
-parent_id = None
-result = []
-try:
-	search_query ="title = 'CMD Test' and mimeType = 'application/vnd.google-apps.folder'	"
-	files = drive_service.files().list(q=search_query).execute()
-	result.extend(files['items'])
-	for f in result:
-		parent_id = f['id']
-except errors.HttpError, error:
-	print 'An error occurred: %s' % error
-
-'''
-#Retrieve file metadata using file id
-try:
-	if file_id is not None:
-		myfile = drive_service.files().get(fileId=file_id).execute()
-		print 'Title: %s' % myfile['title']
-		print 'MIME type: %s' %myfile['mimeType']
+	# Set the parent folder.
+	if parent_id:
+	    body['parents'] = [{'id': parent_id}]
 	else:
-		print 'File id is null.'
-except errors.HttpError, error:
-	print 'An error occurred: %s' % error
+		err_msg = "Could not find parent folder."
+		appendErrorToLog(err_msg)
 
-'''
-filename = 'Test1.pdf'
-mime_type = 'application/pdf'
-title = 'Test1-Changed title'
-description = 'First test file upload'
-
-#Insert a file into folder
-media_body = MediaFileUpload(filename, mimetype=mime_type, resumable=True)
-body = {'title': title,'description': description,'mimeType': mime_type}
-
-# Set the parent folder.
-if parent_id:
-    body['parents'] = [{'id': parent_id}]
-
-try:
-    file = drive_service.files().insert(
-        body=body,
-        media_body=media_body).execute()
-except errors.HttpError, error:
-    print 'An error occured: %s' % error
-    
+	try:
+	    file = drive_service.files().insert(body=body, media_body=media_body).execute()
+	except errors.HttpError, error:
+	    appendErrorToLog(error)
+	return
 
 
+drive_service = initializeCredentials()
+
+#Folder name be passed here: maybe 1st command line arg?
+foldername='CMD Test' #for now static
+parent_id=getParentFolderId(foldername)
+
+#Retrieve each file from command line args and upload to drive
+fileUploadList = getUploadList()
+for f in fileUploadList:
+	uploadFileToDrive(drive_service, f, parent_id)
 

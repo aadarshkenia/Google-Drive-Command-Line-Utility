@@ -1,2 +1,4 @@
 client_secret.json
-*.dat
+credentials.dat
+*.txt
+*.pdf
