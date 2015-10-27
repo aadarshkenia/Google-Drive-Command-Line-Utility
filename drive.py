@@ -10,16 +10,15 @@ import datetime
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client import tools
 from oauth2client.file import Storage
-from pprint import pprint
 from apiclient.discovery import build
 from apiclient import errors
 from apiclient.http import MediaFileUpload
-from apiclient.http import BatchHttpRequest
 
+root_path = '/home/aadarsh-ubuntu/Desktop/Summer Projs/CMDUtility/'
 #Obtains auth token and initializes service object for making API calls
 def initializeCredentials():
 	logging.basicConfig()
-	with open('client_secret.json') as data_file:    
+	with open(root_path+'client_secret.json') as data_file:    
 		data = json.load(data_file)
 
 	#Obtain necessary info from client_secret.json
@@ -31,7 +30,7 @@ def initializeCredentials():
 	#Generate a url on authorization server
 	flow = OAuth2WebServerFlow(CLIENT_ID, CLIENT_SECRET, OAUTH_SCOPE, REDIRECT_URI)
 
-	storage = Storage('credentials.dat')
+	storage = Storage(root_path+'credentials.dat')
 	#the get() function returns the credentials for the Storage object. 
 
 	credentials = storage.get()
@@ -49,7 +48,7 @@ def initializeCredentials():
 
 def appendErrorToLog(message):
 	#Do something about the exception
-	fo = open("logfile.txt", "a")
+	fo = open(root_path+'logfile.txt', "a")
 	curr_time = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
 	fo.write("ERROR:\t"+curr_time+"\n"+"%s\n\n\n\n" %message)
 	fo.close()
@@ -79,18 +78,15 @@ def getUploadList():
 #Upload a file to drive with parent folder id = parent_id
 def uploadFileToDrive(service, filename, parent_id):
 	title = filename
-
 	#Insert a file into folder
 	media_body = MediaFileUpload(filename, resumable=True)
 	body = {'title': title}
-
 	# Set the parent folder.
 	if parent_id:
 	    body['parents'] = [{'id': parent_id}]
 	else:
 		err_msg = "Could not find parent folder."
 		appendErrorToLog(err_msg)
-
 	try:
 	    file = drive_service.files().insert(body=body, media_body=media_body).execute()
 	except errors.HttpError, error:
@@ -99,7 +95,6 @@ def uploadFileToDrive(service, filename, parent_id):
 
 
 drive_service = initializeCredentials()
-
 #Folder name be passed here: maybe 1st command line arg?
 foldername='CMD Test' #for now static
 parent_id=getParentFolderId(foldername)
