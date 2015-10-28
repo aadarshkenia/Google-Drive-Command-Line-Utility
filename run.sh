@@ -1,7 +1,7 @@
 #!/bin/bash
 filename=$1
 allfiles=""
-python_file_path="/home/aadarsh-ubuntu/Desktop/Summer Projs/CMDUtility/drive.py"
+python_file_path="/home/aadarsh-ubuntu/Desktop/Summer Projs/CMDUtility/gdupload.py"
 if [ -z "$filename" ]; then
 	echo "filename is empty"
 else
