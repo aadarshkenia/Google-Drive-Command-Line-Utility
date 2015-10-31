@@ -57,12 +57,12 @@ def appendErrorToLog(message):
 	fo.close()
 
 #Get file/folder id to be downloaded
-def getFileId(fname):
+def getFileId(service, fname):
 	result = []
 	file_id = None
 	try:
 		search_query ="title = '"+fname+"'"
-		files = drive_service.files().list(q=search_query).execute()
+		files = service.files().list(q=search_query).execute()
 		result.extend(files['items'])
 		for f in result:
 			file_id = f['id']
@@ -75,6 +75,15 @@ def getFileId(fname):
 
 def getFileExtension(filename):
 	return filename.split('.')[1]
+
+
+#Get a list of all files to be uploaded from command line args
+def getDownloadList():	
+	filelist = []
+	numargs = len(sys.argv)
+	for i in range (1,numargs):
+		filelist.append(sys.argv[i])
+	return filelist
 
 #Upload a file to drive with parent folder id = parent_id
 def downloadFileFromDrive(service, file_id, file_name):
@@ -101,10 +110,9 @@ def downloadFileFromDrive(service, file_id, file_name):
 
 
 drive_service = initializeCredentials()
-#Folder name be passed here: maybe 1st command line arg?
-file_name='unique1.pdf' #for now static
-file_name_2 = 'unique.txt'
-file_id = getFileId(file_name)
-file_id_2 = getFileId(file_name_2)
-downloadFileFromDrive(drive_service, file_id, file_name)
-downloadFileFromDrive(drive_service, file_id_2, file_name_2)
+
+filelist = getDownloadList()
+for fname in filelist:
+	fid = getFileId(drive_service, fname)
+	downloadFileFromDrive(drive_service, fid, fname)
+

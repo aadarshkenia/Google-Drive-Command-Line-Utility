@@ -6,6 +6,7 @@ import argparse
 import sys
 import time
 import datetime
+import io
 
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client import tools
@@ -13,6 +14,8 @@ from oauth2client.file import Storage
 from apiclient.discovery import build
 from apiclient import errors
 from apiclient.http import MediaFileUpload
+from apiclient.http import MediaIoBaseDownload
+from StringIO import StringIO
 
 root_path = '/home/aadarsh-ubuntu/Desktop/Summer Projs/CMDUtility/'
 #Obtains auth token and initializes service object for making API calls
@@ -53,54 +56,50 @@ def appendErrorToLog(message):
 	fo.write("ERROR:\t"+curr_time+"\n"+"%s\n\n\n\n" %message)
 	fo.close()
 
-def getParentFolderId(service, foldername):
+#Get file/folder id to be downloaded
+def getFileId(service, fname):
 	result = []
-	parent_id = None
+	file_id = None
 	try:
-		search_query ="title = '"+foldername+"' and mimeType = 'application/vnd.google-apps.folder'"
+		search_query ="title = '"+fname+"'"
 		files = service.files().list(q=search_query).execute()
 		result.extend(files['items'])
 		for f in result:
-			parent_id = f['id']
+			file_id = f['id']
+			#print file_id
 	except errors.HttpError, error:
 		appendErrorToLog(error)
-	return parent_id
+		return None
+	return file_id
+
+#Get file/folder name from id
+def getFilenameFromId(service, file_id):
+	file = service.files().get(fileId=file_id).execute()
+	return file['title']
 
 
-#Get a list of all files to be uploaded from command line args
-def getUploadList():	
-	filelist = []
-	numargs = len(sys.argv)
-	for i in range (1,numargs):
-		filelist.append(sys.argv[i])
-	return filelist
-
-#Upload a file to drive with parent folder id = parent_id
-def uploadFileToDrive(service, filename, parent_id):
-	title = filename
-	#Insert a file into folder
-	media_body = MediaFileUpload(filename, resumable=True)
-	body = {'title': title}
-	# Set the parent folder.
-	if parent_id:
-	    body['parents'] = [{'id': parent_id}]
-	else:
-		err_msg = "Could not find parent folder."
-		appendErrorToLog(err_msg)
+#Get all files and subfolders with this folder as parent folder
+def getFilesInFolder(service, foldername):
+	folder_id = getFileId(service, foldername)
+	children_list = []
+	page_token = None
 	try:
-	    file = drive_service.files().insert(body=body, media_body=media_body).execute()
+		param = {}
+		
+		param['pageToken'] = page_token
+		search_query = "folderId='"+folder_id+"'"
+		children = service.children().list(folderId=folder_id).execute()
+		for child in children.get('items', []):
+			print 'File Name: %s' %getFilenameFromId(service, child['id'])
+		page_token = children.get('nextPageToken')
+			
 	except errors.HttpError, error:
-	    appendErrorToLog(error)
+		appendErrorToLog(error)
 	return
 
 
 drive_service = initializeCredentials()
-#Folder name be passed here: maybe 1st command line arg?
-foldername='CMD Test' #for now static
-parent_id=getParentFolderId(drive_service, foldername)
-
-#Retrieve each file from command line args and upload to drive
-fileUploadList = getUploadList()
-for f in fileUploadList:
-	uploadFileToDrive(drive_service, f, parent_id)
-
+#The foldername to be synced will be passed as a command line argument
+foldername = sys.argv[1]
+#children_list = getFilesInFolder(drive_service, foldername, parent_folder_id)
+getFilesInFolder(drive_service, foldername)
